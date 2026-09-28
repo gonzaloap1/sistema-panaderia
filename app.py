@@ -91,84 +91,126 @@ def init_db():
     conn.close()
 
 def create_invoice_image(customer_name, items, total_amount, date_str, invoice_id):
-    # Dimensions and Paddings
-    width = 900
-    margin = 40
-    header_height = 250
-    item_height = 50
-    footer_height = 180
-    height = header_height + (len(items) * item_height) + footer_height
-    
-    # Colors
-    bg_color = (250, 245, 240)
-    primary_color = (211, 84, 0)
-    secondary_color = (44, 62, 80)
-    text_light = (127, 140, 141)
+    width = 650
+    margin = 28
+    item_height = 58
+    table_header_height = 48
+
+    table_start_y = 250
+    table_end_y = table_start_y + table_header_height + (len(items) * item_height)
+    total_box_y = table_end_y + 40
+    min_height = 980
+    height = max(min_height, total_box_y + 190)
+
+    bg_color = (252, 248, 244)
+    primary = (211, 84, 0)
+    secondary = (44, 62, 80)
+    text_muted = (120, 130, 140)
     accent_bg = (255, 255, 255)
-    border_color = (223, 230, 233)
-    
+    border_color = (225, 228, 232)
+
     img = Image.new('RGB', (width, height), color=bg_color)
     draw = ImageDraw.Draw(img)
-    
+
+    # Load bundled TrueType fonts so text is sharp, large and supports accents (ñ, á, é, etc.) on Linux/Vercel
+    font_dir = os.path.join(os.path.dirname(__file__), 'static', 'fonts')
+    bold_path = os.path.join(font_dir, 'arialbd.ttf')
+    reg_path = os.path.join(font_dir, 'arial.ttf')
+
     try:
-        font_super = ImageFont.truetype("arialbd.ttf", 45)
-        font_title = ImageFont.truetype("arialbd.ttf", 32)
-        font_header = ImageFont.truetype("arial.ttf", 22)
-        font_text = ImageFont.truetype("arial.ttf", 20)
-        font_bold = ImageFont.truetype("arialbd.ttf", 20)
-    except:
-        font_super = ImageFont.load_default()
+        font_title = ImageFont.truetype(bold_path, 30)
+        font_sub = ImageFont.truetype(reg_path, 18)
+        font_small_bold = ImageFont.truetype(bold_path, 17)
+        font_client = ImageFont.truetype(bold_path, 26)
+        font_factura = ImageFont.truetype(bold_path, 22)
+        font_date = ImageFont.truetype(reg_path, 17)
+        font_tbl_header = ImageFont.truetype(bold_path, 19)
+        font_row_bold = ImageFont.truetype(bold_path, 22)
+        font_row_reg = ImageFont.truetype(reg_path, 20)
+        font_total_label = ImageFont.truetype(bold_path, 24)
+        font_total_val = ImageFont.truetype(bold_path, 40)
+        font_footer = ImageFont.truetype(bold_path, 19)
+    except Exception:
         font_title = ImageFont.load_default()
-        font_header = ImageFont.load_default()
-        font_text = ImageFont.load_default()
-        font_bold = ImageFont.load_default()
+        font_sub = ImageFont.load_default()
+        font_small_bold = ImageFont.load_default()
+        font_client = ImageFont.load_default()
+        font_factura = ImageFont.load_default()
+        font_date = ImageFont.load_default()
+        font_tbl_header = ImageFont.load_default()
+        font_row_bold = ImageFont.load_default()
+        font_row_reg = ImageFont.load_default()
+        font_total_label = ImageFont.load_default()
+        font_total_val = ImageFont.load_default()
+        font_footer = ImageFont.load_default()
 
-    # Top decorative bar
-    draw.rectangle([0, 0, width, 15], fill=primary_color)
-    draw.text((width/2, 60), "SISTEMA DE ENTREGA DE PAN", font=font_super, fill=primary_color, anchor="mm")
-    
-    details_y = 100
-    draw.rectangle([margin, details_y, width-margin, details_y+120], fill=accent_bg, outline=border_color, width=2)
-    
-    draw.text((margin + 20, details_y + 20), "CLIENTE:", font=font_bold, fill=text_light)
-    draw.text((margin + 20, details_y + 50), customer_name, font=font_title, fill=secondary_color)
-    
-    draw.text((width - margin - 250, details_y + 20), "FACTURA N°:", font=font_bold, fill=text_light)
-    draw.text((width - margin - 250, details_y + 50), f"{invoice_id:06d}", font=font_title, fill=primary_color)
-    draw.text((width - margin - 250, details_y + 85), f"Fecha: {date_str}", font=font_text, fill=text_light)
+    # Top accent bar
+    draw.rectangle([0, 0, width, 14], fill=primary)
 
-    table_y = details_y + 150
-    draw.rectangle([margin, table_y, width-margin, table_y+40], fill=primary_color)
-    
-    col_x = [margin+20, margin+350, margin+500, margin+700]
-    draw.text((col_x[0], table_y + 10), "PRODUCTO", font=font_bold, fill="white")
-    draw.text((col_x[1], table_y + 10), "CANT.", font=font_bold, fill="white")
-    draw.text((col_x[2], table_y + 10), "PRECIO", font=font_bold, fill="white")
-    draw.text((col_x[3], table_y + 10), "SUBTOTAL", font=font_bold, fill="white")
-    
-    y = table_y + 40
-    
+    # Header
+    draw.text((width/2, 48), 'SISTEMA DE ENTREGA DE PAN', font=font_title, fill=primary, anchor='mm')
+    draw.text((width/2, 80), 'COMPROBANTE DE ENTREGA', font=font_sub, fill=text_muted, anchor='mm')
+    draw.line([(margin, 105), (width - margin, 105)], fill=border_color, width=2)
+
+    # Client & Invoice Info Card
+    card_top = 120
+    card_bottom = 230
+    draw.rectangle([margin, card_top, width - margin, card_bottom], fill=accent_bg, outline=border_color, width=2)
+
+    draw.text((margin + 18, card_top + 18), 'CLIENTE:', font=font_small_bold, fill=text_muted)
+    draw.text((margin + 18, card_top + 48), customer_name, font=font_client, fill=secondary)
+
+    right_x = width - margin - 18
+    draw.text((right_x, card_top + 18), f'FACTURA N°: #{invoice_id:06d}', font=font_factura, fill=primary, anchor='rt')
+    draw.text((right_x, card_top + 50), f'Fecha: {date_str[:10]}', font=font_date, fill=secondary, anchor='rt')
+    draw.text((right_x, card_top + 76), f'Hora: {date_str[11:]}', font=font_date, fill=text_muted, anchor='rt')
+
+    # Table Header
+    draw.rectangle([margin, table_start_y, width - margin, table_start_y + table_header_height], fill=primary)
+
+    col_prod = margin + 18
+    col_cant = margin + 250
+    col_price = margin + 370
+    col_sub = width - margin - 18
+
+    draw.text((col_prod, table_start_y + 14), 'PRODUCTO', font=font_tbl_header, fill='white')
+    draw.text((col_cant, table_start_y + 14), 'CANT.', font=font_tbl_header, fill='white', anchor='mt')
+    draw.text((col_price, table_start_y + 14), 'PRECIO', font=font_tbl_header, fill='white', anchor='mt')
+    draw.text((col_sub, table_start_y + 14), 'SUBTOTAL', font=font_tbl_header, fill='white', anchor='rt')
+
+    # Table Rows
+    y = table_start_y + table_header_height
     for i, item in enumerate(items):
-        row_bg = accent_bg if i % 2 == 0 else (249, 250, 251)
-        draw.rectangle([margin, y, width-margin, y+item_height], fill=row_bg, outline=border_color, width=1)
+        row_bg = accent_bg if i % 2 == 0 else (248, 249, 250)
+        draw.rectangle([margin, y, width - margin, y + item_height], fill=row_bg, outline=border_color, width=1)
         
-        text_y = y + 15
-        draw.text((col_x[0], text_y), item['bread_type'], font=font_bold, fill=secondary_color)
-        draw.text((col_x[1], text_y), str(item['quantity']), font=font_text, fill=secondary_color)
-        draw.text((col_x[2], text_y), f"${item['unit_price']:.2f}", font=font_text, fill=secondary_color)
-        draw.text((col_x[3], text_y), f"${item['total_price']:.2f}", font=font_bold, fill=primary_color)
+        text_y = y + 17
+        draw.text((col_prod, text_y), item['bread_type'], font=font_row_bold, fill=secondary)
+        draw.text((col_cant, text_y), str(item['quantity']), font=font_row_bold, fill=secondary, anchor='mt')
         
+        price_val = float(item['unit_price'])
+        draw.text((col_price, text_y), f"${price_val:.2f}", font=font_row_reg, fill=secondary, anchor='mt')
+        
+        tot_val = float(item['total_price'])
+        draw.text((col_sub, text_y), f"${tot_val:.2f}", font=font_row_bold, fill=primary, anchor='rt')
         y += item_height
-    
-    y += 20
-    draw.rectangle([width-margin-300, y, width-margin, y+70], fill=accent_bg, outline=primary_color, width=3)
-    draw.text((width-margin-280, y + 22), "TOTAL:", font=font_title, fill=secondary_color)
-    draw.text((width-margin-20, y + 22), f"${total_amount:.2f}", font=font_super, fill=primary_color, anchor="rm")
-    
-    y += 100
-    draw.text((width/2, y), "¡Gracias por su preferencia!", font=font_header, fill=text_light, anchor="mm")
-    
-    draw.rectangle([0, height-15, width, height], fill=primary_color)
+
+    # Summary units
+    total_units = sum(int(item['quantity']) for item in items)
+    draw.text((margin + 10, y + 14), f'Total de panes: {total_units}', font=font_sub, fill=secondary)
+
+    # Total Box
+    t_box_y = y + 45
+    draw.rectangle([margin, t_box_y, width - margin, t_box_y + 80], fill=accent_bg, outline=primary, width=3)
+    draw.text((margin + 22, t_box_y + 40), 'TOTAL A PAGAR:', font=font_total_label, fill=secondary, anchor='lm')
+    draw.text((width - margin - 22, t_box_y + 40), f"${float(total_amount):.2f}", font=font_total_val, fill=primary, anchor='rm')
+
+    # Footer
+    footer_y = t_box_y + 120
+    draw.text((width/2, footer_y), '¡Gracias por su preferencia!', font=font_footer, fill=text_muted, anchor='mm')
+
+    # Bottom decorative bar
+    draw.rectangle([0, height - 14, width, height], fill=primary)
 
     return img
 
