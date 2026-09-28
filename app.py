@@ -1,4 +1,5 @@
 import os
+import traceback
 import psycopg2
 from psycopg2.extras import DictCursor
 from datetime import datetime
@@ -10,6 +11,24 @@ app = Flask(__name__)
 
 # Supabase PostgreSQL connection string from Environment Variables
 DATABASE_URL = os.environ.get('DATABASE_URL')
+
+@app.errorhandler(500)
+def handle_500(e):
+    return f"<h1>Error 500</h1><pre>{traceback.format_exc()}</pre><p>DATABASE_URL set: {bool(DATABASE_URL)}</p>", 500
+
+@app.route('/debug')
+def debug_route():
+    info = f"DATABASE_URL set: {bool(DATABASE_URL)}\n"
+    if DATABASE_URL:
+        masked = DATABASE_URL[:20] + "..." + DATABASE_URL[-15:]
+        info += f"URL preview: {masked}\n"
+        try:
+            conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+            info += "Connection: SUCCESS\n"
+            conn.close()
+        except Exception as ex:
+            info += f"Connection FAILED: {ex}\n"
+    return f"<pre>{info}</pre>"
 
 BREAD_TYPES = [
     "Francés", "Sobado", "Campesino", "Canilla", "Sándwich", 
