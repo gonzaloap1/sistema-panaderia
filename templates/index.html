@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de entrega de pan</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="background-overlay"></div>
+    
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <a href="/" class="nav-link active"><i class="fa-solid fa-plus"></i> Nueva Factura</a>
+        <a href="/history" class="nav-link"><i class="fa-solid fa-clock-rotate-left"></i> Historial</a>
+    </nav>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fa-solid fa-truck-fast"></i>
+            </div>
+            <h1>Sistema de entrega de pan</h1>
+            <p>Registro y Facturación</p>
+        </header>
+
+        <main class="glass-panel">
+            <section class="customer-section">
+                <div class="input-group">
+                    <label for="customerName"><i class="fa-solid fa-user"></i> Nombre del Cliente</label>
+                    <input type="text" id="customerName" placeholder="Ej. Juan Pérez" autocomplete="off">
+                </div>
+            </section>
+
+            <section class="products-section">
+                <h2><i class="fa-solid fa-bread-slice"></i> Productos Seleccionados</h2>
+                
+                <div class="add-product-container">
+                    <select id="breadSelect" class="form-select">
+                        <option value="" disabled selected>Seleccione el tipo de pan...</option>
+                        {% for bread in bread_types %}
+                        <option value="{{ bread }}">{{ bread }}</option>
+                        {% endfor %}
+                    </select>
+                    <button id="addBreadBtn" class="btn-secondary"><i class="fa-solid fa-plus"></i> Agregar</button>
+                </div>
+
+                <div class="table-responsive">
+                    <table id="productsTable">
+                        <thead>
+                            <tr>
+                                <th>Tipo de Pan</th>
+                                <th>Cantidad</th>
+                                <th>Precio Unit. ($)</th>
+                                <th>Subtotal ($)</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsBody">
+                            <!-- Rows will be injected here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Empty state message -->
+                <div id="emptyState" class="empty-state">
+                    <i class="fa-solid fa-basket-shopping"></i>
+                    <p>Agrega los panes que el cliente desea llevar utilizando el selector de arriba.</p>
+                </div>
+            </section>
+
+            <section class="summary-section">
+                <div class="total-container">
+                    <span>Total a Pagar:</span>
+                    <span id="grandTotal">$0.00</span>
+                </div>
+                <button id="generateBtn" class="btn-primary" disabled>
+                    <i class="fa-solid fa-file-invoice"></i> Generar Factura
+                </button>
+            </section>
+        </main>
+        
+        <footer>
+            <p>Hecho con <i class="fa-solid fa-heart"></i> para tu panadería</p>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>Generando factura...</p>
+    </div>
+
+    <!-- Inject Prices into JS -->
+    <script>
+        const BREAD_PRICES = {{ bread_prices | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

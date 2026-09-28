@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial - Sistema de entrega de pan</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="background-overlay"></div>
+    
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <a href="/" class="nav-link"><i class="fa-solid fa-plus"></i> Nueva Factura</a>
+        <a href="/history" class="nav-link active"><i class="fa-solid fa-clock-rotate-left"></i> Historial</a>
+    </nav>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <h1>Historial de Entregas</h1>
+            <p>Busca facturas pasadas y descárgalas nuevamente</p>
+        </header>
+
+        <main class="glass-panel">
+            <section class="search-section">
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar por nombre de cliente..." autocomplete="off">
+                </div>
+            </section>
+
+            <section class="history-list">
+                <div class="table-responsive">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Factura N°</th>
+                                <th>Cliente</th>
+                                <th>Fecha</th>
+                                <th>Total</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="noResults" class="empty-state hidden">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <p>No se encontraron facturas.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('searchInput');
+            const historyBody = document.getElementById('historyBody');
+            const noResults = document.getElementById('noResults');
+            const tableElement = document.getElementById('historyTable');
+
+            function loadInvoices(searchQuery = '') {
+                fetch(`/api/invoices?search=${encodeURIComponent(searchQuery)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        historyBody.innerHTML = '';
+                        if (data.length === 0) {
+                            noResults.classList.remove('hidden');
+                            tableElement.style.display = 'none';
+                        } else {
+                            noResults.classList.add('hidden');
+                            tableElement.style.display = 'table';
+                            data.forEach(inv => {
+                                const tr = document.createElement('tr');
+                                tr.innerHTML = `
+                                    <td data-label="Factura N°"><strong>#${String(inv.id).padStart(6, '0')}</strong></td>
+                                    <td data-label="Cliente" class="bread-name">${inv.customer_name}</td>
+                                    <td data-label="Fecha">${inv.date}</td>
+                                    <td data-label="Total" class="subtotal-cell">$${inv.total_amount.toFixed(2)}</td>
+                                    <td data-label="Acción">
+                                        <a href="/download/${inv.id}" class="btn-download">
+                                            <i class="fa-solid fa-download"></i> Descargar
+                                        </a>
+                                    </td>
+                                `;
+                                historyBody.appendChild(tr);
+                            });
+                        }
+                    })
+                    .catch(err => console.error(err));
+            }
+
+            // Initial load
+            loadInvoices();
+
+            // Search with debounce
+            let debounceTimeout;
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(debounceTimeout);
+                debounceTimeout = setTimeout(() => {
+                    loadInvoices(e.target.value);
+                }, 300);
+            });
+        });
+    </script>
+</body>
+</html>
