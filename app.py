@@ -152,6 +152,15 @@ def create_invoice_image(customer_name, items, total_amount, date_str, invoice_i
 
     return img
 
+_db_initialized = False
+
+@app.before_request
+def ensure_db():
+    global _db_initialized
+    if not _db_initialized and DATABASE_URL:
+        init_db()
+        _db_initialized = True
+
 @app.route('/')
 def index():
     prices = {}
