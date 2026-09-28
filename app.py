@@ -21,7 +21,8 @@ BREAD_TYPES = [
 def get_db_connection():
     if not DATABASE_URL:
         raise Exception("DATABASE_URL no configurada en las variables de entorno.")
-    return psycopg2.connect(DATABASE_URL)
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    return conn
 
 def init_db():
     if not DATABASE_URL:
