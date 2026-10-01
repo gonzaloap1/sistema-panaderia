@@ -152,57 +152,83 @@ header p {
     box-shadow: 0 0 0 3px rgba(211, 84, 0, 0.2);
 }
 
-.products-section h2 {
-    color: var(--primary-color);
+.products-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 0.75rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.products-header h2 {
+    color: var(--primary-color);
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    border-bottom: 2px solid var(--primary-color);
-    padding-bottom: 0.5rem;
+    font-size: 1.5rem;
+    margin: 0;
 }
 
-/* Dynamic Add Product */
-.add-product-container {
+.products-toolbar {
     display: flex;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    align-items: stretch;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
 }
 
-.form-select {
-    flex: 1;
-    padding: 1rem;
-    border: 2px solid #ecf0f1;
-    border-radius: 10px;
-    font-size: 1.1rem;
+.search-box-inline {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-box-inline i {
+    position: absolute;
+    left: 0.9rem;
+    color: var(--text-light);
+    font-size: 0.95rem;
+    pointer-events: none;
+}
+
+.search-box-inline input {
+    padding: 0.6rem 0.9rem 0.6rem 2.3rem;
+    border: 1.5px solid #ecf0f1;
+    border-radius: 8px;
+    font-size: 0.95rem;
     background: white;
-    outline: none;
-    cursor: pointer;
     transition: var(--transition);
+    outline: none;
+    width: 180px;
 }
 
-.form-select:focus {
+.search-box-inline input:focus {
     border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(211, 84, 0, 0.15);
+    width: 210px;
 }
 
-.btn-secondary {
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    padding: 0 1.5rem;
-    border-radius: 10px;
-    font-size: 1.1rem;
+.btn-outline {
+    background: white;
+    border: 1.5px solid #dcdde1;
+    color: var(--text-main);
+    padding: 0.6rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    transition: var(--transition);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+    transition: var(--transition);
 }
 
-.btn-secondary:hover {
-    background: var(--primary-dark);
+.btn-outline:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: rgba(211, 84, 0, 0.05);
 }
 
 .empty-state {
@@ -314,20 +340,37 @@ td .price-input:focus {
     text-align: right;
 }
 
-.btn-delete {
-    background: #ffeaa7;
-    color: #d63031;
+.product-row {
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.product-row:hover {
+    background-color: rgba(211, 84, 0, 0.02);
+}
+
+.product-row.has-qty {
+    background-color: rgba(211, 84, 0, 0.07);
+    border-left: 4px solid var(--primary-color);
+}
+
+.btn-clear-row {
+    background: #f1f2f6;
+    color: #7f8c8d;
     border: none;
-    width: 35px;
-    height: 35px;
+    width: 34px;
+    height: 34px;
     border-radius: 8px;
     cursor: pointer;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
     transition: var(--transition);
 }
 
-.btn-delete:hover {
-    background: #fab1a0;
-    color: white;
+.btn-clear-row:hover {
+    background: #ffeaa7;
+    color: #d63031;
+    transform: rotate(-45deg);
 }
 
 /* Summary */
@@ -336,7 +379,28 @@ td .price-input:focus {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 1.5rem;
+    gap: 1.25rem;
+}
+
+.items-summary-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: white;
+    border: 1px solid #dee2e6;
+    padding: 0.5rem 1.2rem;
+    border-radius: 20px;
+    font-size: 0.95rem;
+    color: var(--text-light);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    transition: var(--transition);
+}
+
+.items-summary-badge.active {
+    background: rgba(39, 174, 96, 0.12);
+    border-color: #27ae60;
+    color: #27ae60;
+    font-weight: 600;
 }
 
 .total-container {
@@ -492,13 +556,26 @@ footer i {
     .glass-panel { padding: 1.5rem; }
     header h1 { font-size: 1.8rem; }
     
-    .add-product-container {
+    .products-header {
         flex-direction: column;
+        align-items: stretch;
     }
-    
-    .btn-secondary {
-        padding: 1rem;
-        justify-content: center;
+
+    .products-toolbar {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .search-box-inline {
+        flex: 1;
+    }
+
+    .search-box-inline input {
+        width: 100%;
+    }
+
+    .search-box-inline input:focus {
+        width: 100%;
     }
 
     table, thead, tbody, th, td, tr { display: block; }

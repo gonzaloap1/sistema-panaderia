@@ -4,120 +4,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!productsBody) return;
 
     const grandTotalElement = document.getElementById('grandTotal');
+    const selectedCountBadge = document.getElementById('selectedCountBadge');
     const generateBtn = document.getElementById('generateBtn');
     const customerNameInput = document.getElementById('customerName');
     const loadingOverlay = document.getElementById('loadingOverlay');
-    
-    const breadSelect = document.getElementById('breadSelect');
-    const addBreadBtn = document.getElementById('addBreadBtn');
-    const emptyState = document.getElementById('emptyState');
     const productsTable = document.getElementById('productsTable');
+    const productSearch = document.getElementById('productSearch');
+    const resetQuantitiesBtn = document.getElementById('resetQuantitiesBtn');
+    const noProductsFound = document.getElementById('noProductsFound');
 
-    // Add selected bread to table
-    addBreadBtn.addEventListener('click', () => {
-        const breadType = breadSelect.value;
-        if (!breadType) return;
-
-        // Check if already in table
-        const existingRow = productsBody.querySelector(`tr[data-bread="${breadType}"]`);
-        if (existingRow) {
-            alert('Este pan ya fue agregado a la lista. Puedes modificar su cantidad.');
-            return;
-        }
-
-        // Get saved price
-        const price = BREAD_PRICES[breadType] || 0;
-        const priceStr = price > 0 ? price : '';
-
-        const tr = document.createElement('tr');
-        tr.className = 'product-row';
-        tr.dataset.bread = breadType;
-        
-        tr.innerHTML = `
-            <td class="bread-name" data-label="Tipo de Pan">${breadType}</td>
-            <td data-label="Cantidad">
-                <div class="qty-control">
-                    <button type="button" class="qty-btn minus" tabindex="-1"><i class="fa-solid fa-minus"></i></button>
-                    <input type="number" class="qty-input" min="0" value="0" aria-label="Cantidad">
-                    <button type="button" class="qty-btn plus" tabindex="-1"><i class="fa-solid fa-plus"></i></button>
-                </div>
-            </td>
-            <td data-label="Precio Unit. ($)">
-                <input type="number" class="price-input" min="0" step="0.01" value="${priceStr}" placeholder="0.00" aria-label="Precio Unitario">
-            </td>
-            <td class="subtotal-cell" data-label="Subtotal ($)">0.00</td>
-            <td class="action-cell">
-                <button type="button" class="btn-delete" title="Quitar producto"><i class="fa-solid fa-trash"></i></button>
-            </td>
-        `;
-
-        productsBody.appendChild(tr);
-        
-        // Reset select
-        breadSelect.value = '';
-        
-        // Update UI
-        updateTableVisibility();
-        calculateRowSubtotal(tr);
-        calculateGrandTotal();
-    });
-
-    function updateTableVisibility() {
-        const hasRows = productsBody.children.length > 0;
-        if (hasRows) {
-            emptyState.classList.add('hidden');
-            productsTable.style.display = 'table'; // or block for mobile via CSS
-            generateBtn.disabled = false;
-        } else {
-            emptyState.classList.remove('hidden');
-            productsTable.style.display = 'none';
-            generateBtn.disabled = true;
-        }
-    }
-
-    // Initialize visibility
-    updateTableVisibility();
-
-    // Event Delegation for Delete and Plus/Minus buttons
-    productsTable.addEventListener('click', (e) => {
-        // Handle Delete
-        if (e.target.closest('.btn-delete')) {
-            const row = e.target.closest('tr');
-            row.remove();
-            updateTableVisibility();
-            calculateGrandTotal();
-            return;
-        }
-
-        // Handle Plus/Minus
-        if (e.target.closest('.qty-btn')) {
-            const btn = e.target.closest('.qty-btn');
-            const row = btn.closest('tr');
-            const input = row.querySelector('.qty-input');
-            let val = parseInt(input.value) || 0;
-            
-            if (btn.classList.contains('plus')) {
-                val += 1;
-            } else if (btn.classList.contains('minus')) {
-                val = val > 0 ? val - 1 : 0; // Minimum 0
-            }
-            
-            input.value = val;
-            
-            calculateRowSubtotal(row);
-            calculateGrandTotal();
-        }
-    });
-
-    // Input changes
-    productsTable.addEventListener('input', (e) => {
-        if (e.target.classList.contains('qty-input') || e.target.classList.contains('price-input')) {
-            const row = e.target.closest('tr');
-            calculateRowSubtotal(row);
-            calculateGrandTotal();
-        }
-    });
-
+    // Calculate subtotal for an individual row
     function calculateRowSubtotal(row) {
         const qtyInput = row.querySelector('.qty-input');
         const priceInput = row.querySelector('.price-input');
@@ -127,56 +23,199 @@ document.addEventListener('DOMContentLoaded', () => {
         const price = parseFloat(priceInput.value) || 0;
         const subtotal = qty * price;
 
-        subtotalCell.textContent = subtotal.toFixed(2);
-        
-        if (qty > 0 && price > 0) {
-            row.style.borderLeft = '4px solid var(--primary-color)';
+        subtotalCell.textContent = `$${subtotal.toFixed(2)}`;
+
+        if (qty > 0) {
+            row.classList.add('has-qty');
         } else {
-            row.style.borderLeft = '';
+            row.classList.remove('has-qty');
         }
+
+        return { qty, price, subtotal };
     }
 
+    // Calculate grand total & update UI indicators
     function calculateGrandTotal() {
         const rows = document.querySelectorAll('.product-row');
         let total = 0;
-
-        rows.forEach(row => {
-            const subtotalText = row.querySelector('.subtotal-cell').textContent;
-            total += parseFloat(subtotalText) || 0;
-        });
-
-        grandTotalElement.textContent = `$${total.toFixed(2)}`;
-    }
-
-    generateBtn.addEventListener('click', async () => {
-        const rows = document.querySelectorAll('.product-row');
-        const items = [];
-        let hasError = false;
+        let selectedCount = 0;
+        let totalUnits = 0;
 
         rows.forEach(row => {
             const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
             const price = parseFloat(row.querySelector('.price-input').value) || 0;
             
-            if (qty > 0 && price > 0) {
-                const breadType = row.dataset.bread;
-                items.push({
-                    bread_type: breadType,
-                    quantity: qty,
-                    unit_price: price,
-                    total_price: qty * price
-                });
-            } else {
-                hasError = true;
+            if (qty > 0) {
+                selectedCount++;
+                totalUnits += qty;
+                total += (qty * price);
             }
         });
 
-        if (hasError) {
-            alert('Asegúrese de que todos los productos agregados tengan una cantidad y precio válidos mayores a 0.');
+        grandTotalElement.textContent = `$${total.toFixed(2)}`;
+
+        if (selectedCount === 0) {
+            selectedCountBadge.innerHTML = `<i class="fa-solid fa-basket-shopping"></i> <span>0 productos seleccionados</span>`;
+            selectedCountBadge.classList.remove('active');
+            generateBtn.disabled = true;
+        } else {
+            const unitText = totalUnits === 1 ? 'unidad' : 'unidades';
+            const prodText = selectedCount === 1 ? 'producto' : 'productos';
+            selectedCountBadge.innerHTML = `<i class="fa-solid fa-check-circle"></i> <span><strong>${selectedCount}</strong> ${prodText} (${totalUnits} ${unitText})</span>`;
+            selectedCountBadge.classList.add('active');
+            generateBtn.disabled = false;
+        }
+    }
+
+    // Retrieve bread prices from JSON container safely
+    let breadPrices = {};
+    const breadPricesElem = document.getElementById('breadPricesData');
+    if (breadPricesElem && breadPricesElem.textContent) {
+        try {
+            breadPrices = JSON.parse(breadPricesElem.textContent);
+        } catch (e) {
+            console.error('Error parsing prices JSON:', e);
+        }
+    }
+
+    // Initialize all rows with prices from breadPrices if input is empty
+    const allRows = document.querySelectorAll('.product-row');
+    allRows.forEach(row => {
+        const breadType = row.dataset.bread;
+        const priceInput = row.querySelector('.price-input');
+        
+        if ((!priceInput.value || parseFloat(priceInput.value) === 0) && breadPrices && breadPrices[breadType]) {
+            const p = parseFloat(breadPrices[breadType]);
+            if (p > 0) {
+                priceInput.value = p.toFixed(2);
+            }
+        }
+        calculateRowSubtotal(row);
+    });
+    calculateGrandTotal();
+
+    // Event Delegation on Products Table: +/- and Clear Row buttons
+    productsTable.addEventListener('click', (e) => {
+        // Handle Clear Row button (reset quantity to 0)
+        const clearBtn = e.target.closest('.btn-clear-row');
+        if (clearBtn) {
+            const row = clearBtn.closest('tr');
+            const qtyInput = row.querySelector('.qty-input');
+            qtyInput.value = 0;
+            calculateRowSubtotal(row);
+            calculateGrandTotal();
+            return;
+        }
+
+        // Handle Plus/Minus buttons
+        const qtyBtn = e.target.closest('.qty-btn');
+        if (qtyBtn) {
+            const row = qtyBtn.closest('tr');
+            const input = row.querySelector('.qty-input');
+            let val = parseInt(input.value) || 0;
+
+            if (qtyBtn.classList.contains('plus')) {
+                val += 1;
+            } else if (qtyBtn.classList.contains('minus')) {
+                val = val > 0 ? val - 1 : 0;
+            }
+
+            input.value = val;
+            calculateRowSubtotal(row);
+            calculateGrandTotal();
+        }
+    });
+
+    // Handle Input changes in quantities & prices
+    productsTable.addEventListener('input', (e) => {
+        if (e.target.classList.contains('qty-input') || e.target.classList.contains('price-input')) {
+            const row = e.target.closest('tr');
+            if (e.target.classList.contains('qty-input') && parseFloat(e.target.value) < 0) {
+                e.target.value = 0;
+            }
+            calculateRowSubtotal(row);
+            calculateGrandTotal();
+        }
+    });
+
+    // Global reset: Reset all quantities to 0
+    if (resetQuantitiesBtn) {
+        resetQuantitiesBtn.addEventListener('click', () => {
+            const rows = document.querySelectorAll('.product-row');
+            rows.forEach(row => {
+                row.querySelector('.qty-input').value = 0;
+                calculateRowSubtotal(row);
+            });
+            calculateGrandTotal();
+        });
+    }
+
+    // Search / filter products in real-time
+    if (productSearch) {
+        productSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            const rows = document.querySelectorAll('.product-row');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const breadName = (row.dataset.bread || '').toLowerCase();
+                if (!query || breadName.includes(query)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            if (visibleCount === 0) {
+                noProductsFound.classList.remove('hidden');
+            } else {
+                noProductsFound.classList.add('hidden');
+            }
+        });
+    }
+
+    // Generate Invoice handler
+    generateBtn.addEventListener('click', async () => {
+        const rows = document.querySelectorAll('.product-row');
+        const items = [];
+        let priceErrorBread = null;
+        let priceErrorInput = null;
+
+        rows.forEach(row => {
+            const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+            const priceInput = row.querySelector('.price-input');
+            const price = parseFloat(priceInput.value) || 0;
+            const breadType = row.dataset.bread;
+
+            if (qty > 0) {
+                if (price <= 0) {
+                    if (!priceErrorBread) {
+                        priceErrorBread = breadType;
+                        priceErrorInput = priceInput;
+                    }
+                } else {
+                    items.push({
+                        bread_type: breadType,
+                        quantity: qty,
+                        unit_price: price,
+                        total_price: qty * price
+                    });
+                }
+            }
+        });
+
+        if (priceErrorBread) {
+            alert(`Por favor, ingresa un precio unitario válido mayor a 0 para "${priceErrorBread}".`);
+            if (priceErrorInput) {
+                priceErrorInput.focus();
+                priceErrorInput.select();
+            }
             return;
         }
 
         if (items.length === 0) {
-            alert('Por favor, agregue al menos un producto a la factura.');
+            alert('Por favor, indica una cantidad mayor a 0 para al menos un producto.');
             return;
         }
 
@@ -203,13 +242,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
-            
+
             const disposition = response.headers.get('Content-Disposition');
             let filename = 'factura.png';
             if (disposition && disposition.indexOf('attachment') !== -1) {
-                var filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-                var matches = filenameRegex.exec(disposition);
-                if (matches != null && matches[1]) { 
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) {
                     filename = matches[1].replace(/['"]/g, '');
                 }
             }
@@ -220,15 +259,24 @@ document.addEventListener('DOMContentLoaded', () => {
             a.download = filename;
             document.body.appendChild(a);
             a.click();
-            
+
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
 
-            // Optional: clear table after successful generation
-            productsBody.innerHTML = '';
-            updateTableVisibility();
+            // Reset quantities for a new order while keeping all products on screen
+            rows.forEach(row => {
+                row.querySelector('.qty-input').value = 0;
+                calculateRowSubtotal(row);
+            });
             calculateGrandTotal();
             customerNameInput.value = '';
+
+            // Reset search filter if any
+            if (productSearch) {
+                productSearch.value = '';
+                rows.forEach(row => row.style.display = '');
+                noProductsFound.classList.add('hidden');
+            }
 
         } catch (error) {
             alert('Error: ' + error.message);

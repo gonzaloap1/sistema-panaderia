@@ -35,16 +35,17 @@
             </section>
 
             <section class="products-section">
-                <h2><i class="fa-solid fa-bread-slice"></i> Productos Seleccionados</h2>
-                
-                <div class="add-product-container">
-                    <select id="breadSelect" class="form-select">
-                        <option value="" disabled selected>Seleccione el tipo de pan...</option>
-                        {% for bread in bread_types %}
-                        <option value="{{ bread }}">{{ bread }}</option>
-                        {% endfor %}
-                    </select>
-                    <button id="addBreadBtn" class="btn-secondary"><i class="fa-solid fa-plus"></i> Agregar</button>
+                <div class="products-header">
+                    <h2><i class="fa-solid fa-bread-slice"></i> Catálogo de Productos</h2>
+                    <div class="products-toolbar">
+                        <div class="search-box-inline">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="productSearch" placeholder="Buscar pan..." autocomplete="off">
+                        </div>
+                        <button type="button" id="resetQuantitiesBtn" class="btn-outline" title="Restablecer todas las cantidades a 0">
+                            <i class="fa-solid fa-rotate-left"></i> Limpiar cantidades
+                        </button>
+                    </div>
                 </div>
 
                 <div class="table-responsive">
@@ -55,22 +56,46 @@
                                 <th>Cantidad</th>
                                 <th>Precio Unit. ($)</th>
                                 <th>Subtotal ($)</th>
-                                <th></th>
+                                <th>Acción</th>
                             </tr>
                         </thead>
                         <tbody id="productsBody">
-                            <!-- Rows will be injected here dynamically -->
+                            {% for bread in bread_types %}
+                            <tr class="product-row" data-bread="{{ bread }}">
+                                <td class="bread-name" data-label="Tipo de Pan">
+                                    <span class="bread-title">{{ bread }}</span>
+                                </td>
+                                <td data-label="Cantidad">
+                                    <div class="qty-control">
+                                        <button type="button" class="qty-btn minus" tabindex="-1" title="Disminuir"><i class="fa-solid fa-minus"></i></button>
+                                        <input type="number" class="qty-input" min="0" value="0" aria-label="Cantidad para {{ bread }}">
+                                        <button type="button" class="qty-btn plus" tabindex="-1" title="Aumentar"><i class="fa-solid fa-plus"></i></button>
+                                    </div>
+                                </td>
+                                <td data-label="Precio Unit. ($)">
+                                    <input type="number" class="price-input" min="0" step="0.01" placeholder="0.00" aria-label="Precio Unitario para {{ bread }}">
+                                </td>
+                                <td class="subtotal-cell" data-label="Subtotal ($)">$0.00</td>
+                                <td class="action-cell" data-label="Acción">
+                                    <button type="button" class="btn-clear-row" title="Restablecer cantidad a 0"><i class="fa-solid fa-rotate-left"></i></button>
+                                </td>
+                            </tr>
+                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
-                <!-- Empty state message -->
-                <div id="emptyState" class="empty-state">
-                    <i class="fa-solid fa-basket-shopping"></i>
-                    <p>Agrega los panes que el cliente desea llevar utilizando el selector de arriba.</p>
+
+                <!-- Empty state when search filter has no match -->
+                <div id="noProductsFound" class="empty-state hidden">
+                    <i class="fa-solid fa-bread-slice"></i>
+                    <p>No se encontraron productos que coincidan con la búsqueda.</p>
                 </div>
             </section>
 
             <section class="summary-section">
+                <div class="items-summary-badge" id="selectedCountBadge">
+                    <i class="fa-solid fa-basket-shopping"></i> <span>0 productos seleccionados</span>
+                </div>
                 <div class="total-container">
                     <span>Total a Pagar:</span>
                     <span id="grandTotal">$0.00</span>
@@ -92,10 +117,8 @@
         <p>Generando factura...</p>
     </div>
 
-    <!-- Inject Prices into JS -->
-    <script>
-        const BREAD_PRICES = {{ bread_prices | tojson }};
-    </script>
+    <!-- Bread Prices Data in valid JSON container -->
+    <script id="breadPricesData" type="application/json">{{ bread_prices | tojson }}</script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
