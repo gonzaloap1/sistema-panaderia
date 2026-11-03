@@ -1,5 +1,6 @@
 import os
 import traceback
+import sqlite3
 import psycopg2
 from psycopg2.extras import DictCursor
 from datetime import datetime
@@ -11,6 +12,7 @@ app = Flask(__name__)
 
 # Supabase PostgreSQL connection string from Environment Variables
 DATABASE_URL = os.environ.get('DATABASE_URL')
+DB_PATH = os.path.join(os.path.dirname(__file__), 'bakery.db')
 
 @app.errorhandler(500)
 def handle_500(e):
@@ -33,60 +35,92 @@ def debug_route():
 BREAD_TYPES = [
     "Francés", "Sobado", "Campesino", "Canilla", "Sándwich", 
     "Coco", "Piñita", "Frutas", "Guayaba", "Golfeado", 
-    "Palmerita", "Tornillos", "Roja", "Marmoleada", "De pan", 
-    "Suspiro", "Pasta", "Polvorosa", "Panelitas", "Rosca", "Tostada"
+    "Palmeritas", "Tornillos", "Roja", "Marmoleada", "Torta de pan", 
+    "Suspiro", "Pasta", "Polvorosa", "Rosca", "Tostada",
+    "Pan de leche", "Pan dulce", "Pan salado"
 ]
 
 def get_db_connection():
-    if not DATABASE_URL:
-        raise Exception("DATABASE_URL no configurada en las variables de entorno.")
-    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+        return conn
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
-    if not DATABASE_URL:
-        print("Saltando inicialización de DB local, se requiere DATABASE_URL de Supabase.")
-        return
-        
     conn = get_db_connection()
     c = conn.cursor()
-    # Invoices table (Postgres uses SERIAL)
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS invoices (
-            id SERIAL PRIMARY KEY,
-            customer_name TEXT,
-            date TEXT,
-            total_amount REAL
-        )
-    ''')
-    # Invoice items table
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS invoice_items (
-            id SERIAL PRIMARY KEY,
-            invoice_id INTEGER,
-            bread_type TEXT,
-            quantity INTEGER,
-            unit_price REAL,
-            total_price REAL,
-            FOREIGN KEY (invoice_id) REFERENCES invoices (id)
-        )
-    ''')
-    # Prices table
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS bread_prices (
-            bread_type TEXT PRIMARY KEY,
-            current_price REAL
-        )
-    ''')
-    
-    # Initialize prices if not present (Postgres syntax)
-    for bread in BREAD_TYPES:
+    if DATABASE_URL:
+        # Postgres tables (using SERIAL)
         c.execute('''
-            INSERT INTO bread_prices (bread_type, current_price) 
-            VALUES (%s, %s)
-            ON CONFLICT (bread_type) DO NOTHING
-        ''', (bread, 0.0))
-        
+            CREATE TABLE IF NOT EXISTS invoices (
+                id SERIAL PRIMARY KEY,
+                customer_name TEXT,
+                date TEXT,
+                total_amount REAL
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id SERIAL PRIMARY KEY,
+                invoice_id INTEGER,
+                bread_type TEXT,
+                quantity INTEGER,
+                unit_price REAL,
+                total_price REAL,
+                FOREIGN KEY (invoice_id) REFERENCES invoices (id)
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS bread_prices (
+                bread_type TEXT PRIMARY KEY,
+                current_price REAL
+            )
+        ''')
+        # Migrate renamed breads if present in Supabase
+        c.execute("UPDATE bread_prices SET bread_type = 'Torta de pan' WHERE bread_type = 'De pan'")
+        c.execute("UPDATE bread_prices SET bread_type = 'Palmeritas' WHERE bread_type IN ('Panelitas', 'Palmerita')")
+        for bread in BREAD_TYPES:
+            c.execute('''
+                INSERT INTO bread_prices (bread_type, current_price) 
+                VALUES (%s, %s)
+                ON CONFLICT (bread_type) DO NOTHING
+            ''', (bread, 0.0))
+    else:
+        # SQLite tables
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_name TEXT,
+                date TEXT,
+                total_amount REAL
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_id INTEGER,
+                bread_type TEXT,
+                quantity INTEGER,
+                unit_price REAL,
+                total_price REAL,
+                FOREIGN KEY (invoice_id) REFERENCES invoices (id)
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS bread_prices (
+                bread_type TEXT PRIMARY KEY,
+                current_price REAL
+            )
+        ''')
+        for bread in BREAD_TYPES:
+            c.execute('''
+                INSERT INTO bread_prices (bread_type, current_price) 
+                VALUES (?, ?)
+                ON CONFLICT (bread_type) DO NOTHING
+            ''', (bread, 0.0))
+            
     conn.commit()
     conn.close()
 
@@ -219,19 +253,21 @@ _db_initialized = False
 @app.before_request
 def ensure_db():
     global _db_initialized
-    if not _db_initialized and DATABASE_URL:
+    if not _db_initialized:
         init_db()
         _db_initialized = True
 
 @app.route('/')
 def index():
     prices = {}
-    if DATABASE_URL:
+    try:
         conn = get_db_connection()
         c = conn.cursor()
         c.execute('SELECT bread_type, current_price FROM bread_prices')
         prices = {row[0]: row[1] for row in c.fetchall()}
         conn.close()
+    except Exception as e:
+        print(f"Error al obtener precios: {e}")
     
     return render_template('index.html', bread_types=BREAD_TYPES, bread_prices=prices)
 
@@ -241,17 +277,20 @@ def history():
 
 @app.route('/api/invoices')
 def api_invoices():
-    if not DATABASE_URL:
-        return jsonify([])
-        
     search = request.args.get('search', '')
     conn = get_db_connection()
-    c = conn.cursor(cursor_factory=DictCursor)
-    
-    if search:
-        c.execute("SELECT id, customer_name, date, total_amount FROM invoices WHERE customer_name ILIKE %s ORDER BY id DESC", ('%' + search + '%',))
+    if DATABASE_URL:
+        c = conn.cursor(cursor_factory=DictCursor)
+        if search:
+            c.execute("SELECT id, customer_name, date, total_amount FROM invoices WHERE customer_name ILIKE %s ORDER BY id DESC", ('%' + search + '%',))
+        else:
+            c.execute("SELECT id, customer_name, date, total_amount FROM invoices ORDER BY id DESC")
     else:
-        c.execute("SELECT id, customer_name, date, total_amount FROM invoices ORDER BY id DESC")
+        c = conn.cursor()
+        if search:
+            c.execute("SELECT id, customer_name, date, total_amount FROM invoices WHERE customer_name LIKE ? ORDER BY id DESC", ('%' + search + '%',))
+        else:
+            c.execute("SELECT id, customer_name, date, total_amount FROM invoices ORDER BY id DESC")
         
     invoices = []
     for row in c.fetchall():
@@ -264,23 +303,27 @@ def api_invoices():
     conn.close()
     return jsonify(invoices)
 
-@app.route('/download/<int:invoice_id>')
-def download_invoice(invoice_id):
-    if not DATABASE_URL:
-        return "Database not configured", 500
-        
+def generate_invoice_image_by_id(invoice_id):
     conn = get_db_connection()
-    c = conn.cursor(cursor_factory=DictCursor)
-    
-    c.execute("SELECT customer_name, date, total_amount FROM invoices WHERE id=%s", (invoice_id,))
+    if DATABASE_URL:
+        c = conn.cursor(cursor_factory=DictCursor)
+        c.execute("SELECT customer_name, date, total_amount FROM invoices WHERE id=%s", (invoice_id,))
+    else:
+        c = conn.cursor()
+        c.execute("SELECT customer_name, date, total_amount FROM invoices WHERE id=?", (invoice_id,))
+
     inv = c.fetchone()
     if not inv:
         conn.close()
-        return "Invoice not found", 404
+        return None
         
     customer_name, date_str, total_amount = inv['customer_name'], inv['date'], inv['total_amount']
     
-    c.execute("SELECT bread_type, quantity, unit_price, total_price FROM invoice_items WHERE invoice_id=%s", (invoice_id,))
+    if DATABASE_URL:
+        c.execute("SELECT bread_type, quantity, unit_price, total_price FROM invoice_items WHERE invoice_id=%s", (invoice_id,))
+    else:
+        c.execute("SELECT bread_type, quantity, unit_price, total_price FROM invoice_items WHERE invoice_id=?", (invoice_id,))
+        
     items_rows = c.fetchall()
     conn.close()
     
@@ -298,14 +341,24 @@ def download_invoice(invoice_id):
     img_io = BytesIO()
     img.save(img_io, 'PNG')
     img_io.seek(0)
-    
+    return img_io
+
+@app.route('/download/<int:invoice_id>')
+def download_invoice(invoice_id):
+    img_io = generate_invoice_image_by_id(invoice_id)
+    if not img_io:
+        return "Invoice not found", 404
     return send_file(img_io, mimetype='image/png', as_attachment=True, download_name=f'factura_{invoice_id}.png')
+
+@app.route('/preview/<int:invoice_id>')
+def preview_invoice(invoice_id):
+    img_io = generate_invoice_image_by_id(invoice_id)
+    if not img_io:
+        return "Invoice not found", 404
+    return send_file(img_io, mimetype='image/png', as_attachment=False)
 
 @app.route('/generate', methods=['POST'])
 def generate_invoice():
-    if not DATABASE_URL:
-        return jsonify({"error": "Base de datos no configurada."}), 500
-        
     data = request.json
     customer_name = data.get('customer_name', 'Consumidor Final')
     items = data.get('items', [])
@@ -319,22 +372,39 @@ def generate_invoice():
     conn = get_db_connection()
     c = conn.cursor()
     
-    # 1. Save Invoice (Postgres returns id with RETURNING)
-    c.execute('INSERT INTO invoices (customer_name, date, total_amount) VALUES (%s, %s, %s) RETURNING id',
-              (customer_name, date_str, total_amount))
-    invoice_id = c.fetchone()[0]
-    
-    # 2. Save Items & Update Prices
-    for item in items:
-        c.execute('INSERT INTO invoice_items (invoice_id, bread_type, quantity, unit_price, total_price) VALUES (%s, %s, %s, %s, %s)',
-                  (invoice_id, item['bread_type'], item['quantity'], item['unit_price'], item['total_price']))
+    if DATABASE_URL:
+        # 1. Save Invoice (Postgres returns id with RETURNING)
+        c.execute('INSERT INTO invoices (customer_name, date, total_amount) VALUES (%s, %s, %s) RETURNING id',
+                  (customer_name, date_str, total_amount))
+        invoice_id = c.fetchone()[0]
         
-        # Postgres UPSERT
-        c.execute('''
-            INSERT INTO bread_prices (bread_type, current_price) 
-            VALUES (%s, %s)
-            ON CONFLICT (bread_type) DO UPDATE SET current_price = EXCLUDED.current_price
-        ''', (item['bread_type'], item['unit_price']))
+        # 2. Save Items & Update Prices
+        for item in items:
+            c.execute('INSERT INTO invoice_items (invoice_id, bread_type, quantity, unit_price, total_price) VALUES (%s, %s, %s, %s, %s)',
+                      (invoice_id, item['bread_type'], item['quantity'], item['unit_price'], item['total_price']))
+            
+            # Postgres UPSERT
+            c.execute('''
+                INSERT INTO bread_prices (bread_type, current_price) 
+                VALUES (%s, %s)
+                ON CONFLICT (bread_type) DO UPDATE SET current_price = EXCLUDED.current_price
+            ''', (item['bread_type'], item['unit_price']))
+    else:
+        # SQLite
+        c.execute('INSERT INTO invoices (customer_name, date, total_amount) VALUES (?, ?, ?)',
+                  (customer_name, date_str, total_amount))
+        invoice_id = c.lastrowid
+        
+        for item in items:
+            c.execute('INSERT INTO invoice_items (invoice_id, bread_type, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?)',
+                      (invoice_id, item['bread_type'], item['quantity'], item['unit_price'], item['total_price']))
+            
+            # SQLite UPSERT
+            c.execute('''
+                INSERT INTO bread_prices (bread_type, current_price) 
+                VALUES (?, ?)
+                ON CONFLICT (bread_type) DO UPDATE SET current_price = excluded.current_price
+            ''', (item['bread_type'], item['unit_price']))
                   
     conn.commit()
     conn.close()

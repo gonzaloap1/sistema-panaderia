@@ -59,12 +59,102 @@
         </main>
     </div>
 
+    <!-- Invoice Preview Modal -->
+    <div id="previewModal" class="preview-modal hidden">
+        <div class="modal-backdrop" id="modalBackdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fa-solid fa-file-invoice"></i>
+                    <span id="modalInvoiceTitle">Factura #000000</span>
+                </div>
+                <button type="button" class="modal-close-btn" id="modalCloseBtn" title="Cerrar (Esc)">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="modalLoading" class="modal-loading">
+                    <div class="spinner"></div>
+                    <p>Cargando vista previa...</p>
+                </div>
+                <img id="modalPreviewImg" class="modal-preview-img" alt="Vista previa de factura" style="display:none;" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-modal-secondary" id="modalCancelBtn">Cerrar</button>
+                <a id="modalDownloadBtn" href="#" class="btn-modal-primary" download>
+                    <i class="fa-solid fa-download"></i> Descargar Factura
+                </a>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const searchInput = document.getElementById('searchInput');
             const historyBody = document.getElementById('historyBody');
             const noResults = document.getElementById('noResults');
             const tableElement = document.getElementById('historyTable');
+
+            const previewModal = document.getElementById('previewModal');
+            const modalBackdrop = document.getElementById('modalBackdrop');
+            const modalCloseBtn = document.getElementById('modalCloseBtn');
+            const modalCancelBtn = document.getElementById('modalCancelBtn');
+            const modalInvoiceTitle = document.getElementById('modalInvoiceTitle');
+            const modalLoading = document.getElementById('modalLoading');
+            const modalPreviewImg = document.getElementById('modalPreviewImg');
+            const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+
+            function escapeHtml(str) {
+                return String(str || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/'/g, '&#39;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
+
+            window.openPreview = function(id, customerName) {
+                const formattedId = '#' + String(id).padStart(6, '0');
+                modalInvoiceTitle.textContent = `${formattedId} - ${customerName}`;
+                modalDownloadBtn.href = `/download/${id}`;
+                modalDownloadBtn.setAttribute('download', `factura_${id}.png`);
+                
+                modalLoading.innerHTML = '<div class="spinner"></div><p>Cargando vista previa...</p>';
+                modalLoading.style.display = 'flex';
+                modalPreviewImg.style.display = 'none';
+                modalPreviewImg.src = '';
+                
+                previewModal.classList.remove('hidden');
+                document.body.classList.add('modal-open');
+
+                // Load image
+                const img = new Image();
+                img.onload = () => {
+                    modalPreviewImg.src = img.src;
+                    modalLoading.style.display = 'none';
+                    modalPreviewImg.style.display = 'block';
+                };
+                img.onerror = () => {
+                    modalLoading.innerHTML = '<p style="color:#e74c3c;"><i class="fa-solid fa-triangle-exclamation"></i> No se pudo cargar la vista previa.</p>';
+                };
+                img.src = `/preview/${id}?t=` + new Date().getTime();
+            };
+
+            window.closePreview = function() {
+                previewModal.classList.add('hidden');
+                document.body.classList.remove('modal-open');
+                modalPreviewImg.src = '';
+            };
+
+            modalBackdrop.addEventListener('click', closePreview);
+            modalCloseBtn.addEventListener('click', closePreview);
+            modalCancelBtn.addEventListener('click', closePreview);
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !previewModal.classList.contains('hidden')) {
+                    closePreview();
+                }
+            });
 
             function loadInvoices(searchQuery = '') {
                 fetch(`/api/invoices?search=${encodeURIComponent(searchQuery)}`)
@@ -79,15 +169,21 @@
                             tableElement.style.display = 'table';
                             data.forEach(inv => {
                                 const tr = document.createElement('tr');
+                                const safeName = escapeHtml(inv.customer_name);
                                 tr.innerHTML = `
                                     <td data-label="Factura N°"><strong>#${String(inv.id).padStart(6, '0')}</strong></td>
-                                    <td data-label="Cliente" class="bread-name">${inv.customer_name}</td>
+                                    <td data-label="Cliente" class="bread-name">${safeName}</td>
                                     <td data-label="Fecha">${inv.date}</td>
-                                    <td data-label="Total" class="subtotal-cell">$${inv.total_amount.toFixed(2)}</td>
+                                    <td data-label="Total" class="subtotal-cell">$${Number(inv.total_amount).toFixed(2)}</td>
                                     <td data-label="Acción">
-                                        <a href="/download/${inv.id}" class="btn-download">
-                                            <i class="fa-solid fa-download"></i> Descargar
-                                        </a>
+                                        <div class="table-actions-group">
+                                            <button type="button" class="btn-preview" onclick="openPreview(${inv.id}, '${safeName}')">
+                                                <i class="fa-solid fa-eye"></i> Ver
+                                            </button>
+                                            <a href="/download/${inv.id}" class="btn-download" title="Descargar comprobante">
+                                                <i class="fa-solid fa-download"></i> Descargar
+                                            </a>
+                                        </div>
                                     </td>
                                 `;
                                 historyBody.appendChild(tr);
