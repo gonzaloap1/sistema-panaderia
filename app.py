@@ -78,9 +78,8 @@ def init_db():
                 current_price REAL
             )
         ''')
-        # Migrate renamed breads if present in Supabase
-        c.execute("UPDATE bread_prices SET bread_type = 'Torta de pan' WHERE bread_type = 'De pan'")
-        c.execute("UPDATE bread_prices SET bread_type = 'Palmeritas' WHERE bread_type IN ('Panelitas', 'Palmerita')")
+        # Clean up legacy/renamed bread entries in Supabase
+        c.execute("DELETE FROM bread_prices WHERE bread_type IN ('Panelitas', 'Palmerita', 'De pan')")
         for bread in BREAD_TYPES:
             c.execute('''
                 INSERT INTO bread_prices (bread_type, current_price) 
